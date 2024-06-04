@@ -36,7 +36,7 @@ elseif(HAVE_GTK)
   ocv_add_external_target(gtk "${GTK_INCLUDE_DIRS}" "${GTK_LIBRARIES}" "${GTK_DEFINES};HAVE_GTK")
 endif()
 
-if(WITH_OPENGL AND HAVE_GTKGLEXT)
+if(WITH_OPENGL)
   find_package(OpenGL QUIET)
   if(OPENGL_FOUND)
     set(HAVE_OPENGL TRUE)
