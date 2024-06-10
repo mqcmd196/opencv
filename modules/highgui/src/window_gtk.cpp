@@ -46,10 +46,7 @@
 
 #include <gtk/gtk.h>
 
-#if (GTK_MAJOR_VERSION == 3) && defined(HAVE_OPENGL)
-  #undef HAVE_OPENGL  // no support with GTK3
-#endif
-#if defined(HAVE_OPENGL) && !defined(HAVE_GTKGLEXT)
+#if (GTK_MAJOR_VERSION == 2) && defined(HAVE_OPENGL) && !defined(HAVE_GTKGLEXT)
   #undef HAVE_OPENGL  // gtkglext is required
 #endif
 
@@ -68,9 +65,13 @@
 #endif
 
 #ifdef HAVE_OPENGL
-    #include <gtk/gtkgl.h>
     #include <GL/gl.h>
+  #ifdef GTK_VERSION3
+    #include <gtk/gtkglarea.h>
+  #else
+    #include <gtk/gtkgl.h>
     #include <GL/glu.h>
+  #endif
 #endif
 
 #include <opencv2/core/utils/logger.hpp>
@@ -640,7 +641,7 @@ CV_IMPL int cvInitSystem( int argc, char** argv )
 
         setlocale(LC_NUMERIC,"C");
 
-        #ifdef HAVE_OPENGL
+        #if defined(HAVE_OPENGL) && not defined(GTK_VERSION3) // GTK3+ uses GtkGLArea so no need to check for GtkGLExt
             if (!gtk_gl_init_check(&argc, &argv))
             {
                 hasError = true;
@@ -912,6 +913,25 @@ namespace
 {
     void createGlContext(CvWindow* window)
     {
+        #ifdef GTK_VERSION3
+
+        GtkWidget* glArea = gtk_gl_area_new();
+
+        gtk_container_add(GTK_CONTAINER(window->widget), glArea);
+        g_signal_connect(glArea, "realize", G_CALLBACK(+[](GtkGLArea* area) {
+            gtk_gl_area_make_current(area);
+            if (gtk_gl_area_get_error(area) != NULL)
+                g_warning("Failed to create OpenGL context");
+        }), NULL);
+        g_signal_connect(glArea, "render", G_CALLBACK(+[](GtkGLArea* area, GdkGLContext* context) {
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            if (window->glDrawCallback)
+                window->glDrawCallback(window->glDrawData);
+            return TRUE;
+        }), NULL);
+
+        #else
+
         GdkGLConfig* glconfig;
 
         // Try double-buffered visual
@@ -923,11 +943,30 @@ namespace
         if (!gtk_widget_set_gl_capability(window->widget, glconfig, NULL, TRUE, GDK_GL_RGBA_TYPE))
             CV_Error( cv::Error::OpenGlApiCallError, "Can't Create A GL Device Context" );
 
+        #endif
+
         window->useGl = true;
     }
 
     void drawGl(CvWindow* window)
     {
+        #ifdef GTK_VERSION3
+
+        GtkGLArea* glArea = GTK_GL_AREA(window->widget);
+        gtk_gl_area_make_current(glArea);
+        if (gtk_gl_area_get_error(glArea) != NULL)
+            CV_Error(cv::Error::OpenGlApiCallError, "Can't Activate The GL Rendering Context");
+
+        glViewport(0, 0, gtk_widget_get_allocated_width(window->widget), gtk_widget_get_allocated_height(window->widget));
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        if (window->glDrawCallback)
+            window->glDrawCallback(window->glDrawData);
+
+        gtk_gl_area_queue_render(glArea);
+
+        #else
+
         GdkGLContext* glcontext = gtk_widget_get_gl_context(window->widget);
         GdkGLDrawable* gldrawable = gtk_widget_get_gl_drawable(window->widget);
 
@@ -947,6 +986,8 @@ namespace
             glFlush();
 
         gdk_gl_drawable_gl_end(gldrawable);
+
+        #endif
     }
 }
 
