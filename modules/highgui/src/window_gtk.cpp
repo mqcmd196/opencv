@@ -925,8 +925,6 @@ namespace
         }), NULL);
         g_signal_connect(glArea, "render", G_CALLBACK(+[](GtkGLArea* area, GdkGLContext* context) {
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-            if (window->glDrawCallback)
-                window->glDrawCallback(window->glDrawData);
             return TRUE;
         }), NULL);
 
@@ -1163,6 +1161,10 @@ static std::shared_ptr<CvWindow> namedWindow_(const std::string& name, int flags
 
 CV_IMPL void cvSetOpenGlContext(const char* name)
 {
+#ifdef GTK_VERSION3
+
+#else
+
     GdkGLContext* glcontext;
     GdkGLDrawable* gldrawable;
 
@@ -1182,6 +1184,9 @@ CV_IMPL void cvSetOpenGlContext(const char* name)
 
     if (!gdk_gl_drawable_make_current(gldrawable, glcontext))
         CV_Error( cv::Error::OpenGlApiCallError, "Can't Activate The GL Rendering Context" );
+
+#endif
+
 }
 
 CV_IMPL void cvUpdateWindow(const char* name)
