@@ -571,7 +571,7 @@ struct CvWindow : CvUIBase
         last_key(0), flags(0), status(0),
         on_mouse(NULL), on_mouse_param(NULL)
 #ifdef HAVE_OPENGL
-        ,useGl(false), glDrawCallback(NULL), glDrawData(NULL)
+        ,useGl(false), glDrawCallback(NULL), glDrawData(NULL), glArea(NULL)
 #endif
     {
         CV_LOG_INFO(NULL, "OpenCV/UI: creating GTK window: " << window_name);
@@ -598,6 +598,7 @@ struct CvWindow : CvUIBase
 
     CvOpenGlDrawCallback glDrawCallback;
     void* glDrawData;
+    GtkWidget* glArea;
 #endif
 };
 
@@ -911,22 +912,37 @@ double cvGetOpenGlProp_GTK(const char* name)
 
 namespace
 {
+
+    struct UserData {
+        CvWindow* window;
+    };
+
+    gboolean glRenderCallback(GtkGLArea* area, GdkGLContext* context, gpointer user_data){
+        UserData* data = static_cast<UserData*>(user_data);
+        CvWindow* window = data->window;
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        if(window->glDrawCallback)
+            window->glDrawCallback(window->glDrawData);
+        return TRUE;
+    }
+
     void createGlContext(CvWindow* window)
     {
         #ifdef GTK_VERSION3
 
         GtkWidget* glArea = gtk_gl_area_new();
-
+        window->glArea = glArea;
         gtk_container_add(GTK_CONTAINER(window->widget), glArea);
+
+        UserData* user_data = new UserData{window};
+
         g_signal_connect(glArea, "realize", G_CALLBACK(+[](GtkGLArea* area) {
             gtk_gl_area_make_current(area);
             if (gtk_gl_area_get_error(area) != NULL)
                 g_warning("Failed to create OpenGL context");
         }), NULL);
-        g_signal_connect(glArea, "render", G_CALLBACK(+[](GtkGLArea* area, GdkGLContext* context) {
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-            return TRUE;
-        }), NULL);
+        g_signal_connect(glArea, "render", G_CALLBACK(glRenderCallback), user_data);
+        gtk_widget_show(glArea);
 
         #else
 
@@ -950,12 +966,13 @@ namespace
     {
         #ifdef GTK_VERSION3
 
-        GtkGLArea* glArea = GTK_GL_AREA(window->widget);
+        GtkGLArea* glArea = GTK_GL_AREA(window->glArea);
         gtk_gl_area_make_current(glArea);
+        std::cout << "L972" << "\n";
         if (gtk_gl_area_get_error(glArea) != NULL)
             CV_Error(cv::Error::OpenGlApiCallError, "Can't Activate The GL Rendering Context");
 
-        glViewport(0, 0, gtk_widget_get_allocated_width(window->widget), gtk_widget_get_allocated_height(window->widget));
+        glViewport(0, 0, gtk_widget_get_allocated_width(window->widget), gtk_widget_get_allocated_height(window->glArea));
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         if (window->glDrawCallback)
@@ -1161,13 +1178,6 @@ static std::shared_ptr<CvWindow> namedWindow_(const std::string& name, int flags
 
 CV_IMPL void cvSetOpenGlContext(const char* name)
 {
-#ifdef GTK_VERSION3
-
-#else
-
-    GdkGLContext* glcontext;
-    GdkGLDrawable* gldrawable;
-
     CV_Assert(name && "NULL name string");
 
     CV_LOCK_MUTEX();
@@ -1178,6 +1188,18 @@ CV_IMPL void cvSetOpenGlContext(const char* name)
 
     if (!window->useGl)
         CV_Error( cv::Error::OpenGlNotSupported, "Window doesn't support OpenGL" );
+
+#ifdef GTK_VERSION3
+
+    gtk_gl_area_make_current(GTK_GL_AREA(window->glArea));
+    std::cout << "L1196" << "\n";
+    if(gtk_gl_area_get_error(GTK_GL_AREA(window->glArea)) != NULL)
+        CV_Error( cv::Error::OpenGlApiCallError, "Can't Activate The GL Rendering Context");
+
+#else
+
+    GdkGLContext* glcontext;
+    GdkGLDrawable* gldrawable;
 
     glcontext = gtk_widget_get_gl_context(window->widget);
     gldrawable = gtk_widget_get_gl_drawable(window->widget);
@@ -1200,7 +1222,20 @@ CV_IMPL void cvUpdateWindow(const char* name)
         return;
 
     // window does not refresh without this
+#ifdef GTK_VERSION3
+
+    if ( GTK_IS_GL_AREA(window->glArea) ){
+        gtk_gl_area_queue_render(GTK_GL_AREA(window->glArea));
+    } else {
+        gtk_widget_queue_draw( GTK_WIDGET(window->widget) );
+    }
+
+#else
+
     gtk_widget_queue_draw( GTK_WIDGET(window->widget) );
+
+#endif
+
 }
 
 CV_IMPL void cvSetOpenGlDrawCallback(const char* name, CvOpenGlDrawCallback callback, void* userdata)
