@@ -932,19 +932,17 @@ namespace
     {
         #ifdef GTK_VERSION3
 
-        GtkWidget* glArea = gtk_gl_area_new();
-        window->glArea = glArea;
-        gtk_container_add(GTK_CONTAINER(window->widget), glArea);
-
         UserData* user_data = new UserData{window};
 
-        g_signal_connect(glArea, "realize", G_CALLBACK(+[](GtkGLArea* area) {
+        window->glArea = gtk_gl_area_new();
+        g_signal_connect(window->glArea, "realize", G_CALLBACK(+[](GtkGLArea* area) {
             gtk_gl_area_make_current(area);
             if (gtk_gl_area_get_error(area) != NULL)
                 g_warning("Failed to create OpenGL context");
         }), NULL);
-        g_signal_connect(glArea, "render", G_CALLBACK(glRenderCallback), user_data);
-        gtk_widget_show(glArea);
+        g_signal_connect(window->glArea, "render", G_CALLBACK(glRenderCallback), user_data);
+        gtk_box_pack_end(GTK_BOX(window->paned), window->glArea, TRUE, TRUE, 0);
+        gtk_widget_show(window->glArea);
 
         #else
 
@@ -970,7 +968,6 @@ namespace
 
         GtkGLArea* glArea = GTK_GL_AREA(window->glArea);
         gtk_gl_area_make_current(glArea);
-        std::cout << "L972" << "\n";
         if (gtk_gl_area_get_error(glArea) != NULL)
             CV_Error(cv::Error::OpenGlApiCallError, "Can't Activate The GL Rendering Context");
 
@@ -1194,7 +1191,6 @@ CV_IMPL void cvSetOpenGlContext(const char* name)
 #ifdef GTK_VERSION3
 
     gtk_gl_area_make_current(GTK_GL_AREA(window->glArea));
-    std::cout << "L1196" << "\n";
     if(gtk_gl_area_get_error(GTK_GL_AREA(window->glArea)) != NULL)
         CV_Error( cv::Error::OpenGlApiCallError, "Can't Activate The GL Rendering Context");
 
