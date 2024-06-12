@@ -913,6 +913,7 @@ double cvGetOpenGlProp_GTK(const char* name)
 namespace
 {
 
+#ifdef GTK_VERSION3
     struct UserData {
         CvWindow* window;
     };
@@ -925,6 +926,7 @@ namespace
             window->glDrawCallback(window->glDrawData);
         return TRUE;
     }
+#endif
 
     void createGlContext(CvWindow* window)
     {
