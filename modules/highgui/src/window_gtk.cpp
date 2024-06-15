@@ -934,15 +934,12 @@ namespace
 
         UserData* user_data = new UserData{window};
 
-        window->glArea = gtk_gl_area_new();
         g_signal_connect(window->glArea, "realize", G_CALLBACK(+[](GtkGLArea* area) {
             gtk_gl_area_make_current(area);
             if (gtk_gl_area_get_error(area) != NULL)
                 g_warning("Failed to create OpenGL context");
         }), NULL);
         g_signal_connect(window->glArea, "render", G_CALLBACK(glRenderCallback), user_data);
-        gtk_box_pack_end(GTK_BOX(window->paned), window->glArea, TRUE, TRUE, 0);
-        gtk_widget_show(window->glArea);
 
         #else
 
@@ -966,9 +963,8 @@ namespace
     {
         #ifdef GTK_VERSION3
 
-        GtkGLArea* glArea = GTK_GL_AREA(window->glArea);
-        gtk_gl_area_make_current(glArea);
-        if (gtk_gl_area_get_error(glArea) != NULL)
+        GtkGLArea* gtkGlArea = GTK_GL_AREA(window->glArea);
+        if (gtk_gl_area_get_error(gtkGlArea) != NULL)
             CV_Error(cv::Error::OpenGlApiCallError, "Can't Activate The GL Rendering Context");
 
         glViewport(0, 0, gtk_widget_get_allocated_width(window->widget), gtk_widget_get_allocated_height(window->glArea));
@@ -977,7 +973,7 @@ namespace
         if (window->glDrawCallback)
             window->glDrawCallback(window->glDrawData);
 
-        gtk_gl_area_queue_render(glArea);
+        gtk_gl_area_queue_render(gtkGlArea);
 
         #else
 
@@ -1096,12 +1092,26 @@ static std::shared_ptr<CvWindow> namedWindow_(const std::string& name, int flags
 
     window->frame = gtk_window_new( GTK_WINDOW_TOPLEVEL );
 
-    window->paned = gtk_vbox_new( FALSE, 0 );
     window->widget = cvImageWidgetNew( flags );
+
+#if defined(HAVE_OPENGL) && defined(GTK_VERSION3)
+    if (flags & cv::WINDOW_OPENGL) {
+        window->glArea = gtk_gl_area_new();
+        gtk_container_add(GTK_CONTAINER(window->frame), window->glArea);
+    } else {
+        window->paned = gtk_vbox_new( FALSE, 0 );
+        gtk_box_pack_end( GTK_BOX(window->paned), window->widget, TRUE, TRUE, 0 );
+        gtk_widget_show( window->widget );
+        gtk_container_add( GTK_CONTAINER(window->frame), window->paned );
+        gtk_widget_show( window->paned );
+    }
+#else
+    window->paned = gtk_vbox_new( FALSE, 0 );
     gtk_box_pack_end( GTK_BOX(window->paned), window->widget, TRUE, TRUE, 0 );
     gtk_widget_show( window->widget );
     gtk_container_add( GTK_CONTAINER(window->frame), window->paned );
     gtk_widget_show( window->paned );
+#endif
 
 #ifndef HAVE_OPENGL
     if (flags & cv::WINDOW_OPENGL)
@@ -1190,7 +1200,6 @@ CV_IMPL void cvSetOpenGlContext(const char* name)
 
 #ifdef GTK_VERSION3
 
-    gtk_gl_area_make_current(GTK_GL_AREA(window->glArea));
     if(gtk_gl_area_get_error(GTK_GL_AREA(window->glArea)) != NULL)
         CV_Error( cv::Error::OpenGlApiCallError, "Can't Activate The GL Rendering Context");
 

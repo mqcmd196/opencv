@@ -283,7 +283,7 @@ TEST(Highgui_GUI, gl)
         glEnd();
     }));
     ASSERT_NO_THROW(imshow(window_name, m));
-    EXPECT_NO_THROW(waitKey(1000));
+    EXPECT_NO_THROW(waitKey(10000));
     EXPECT_NO_THROW(setOpenGlDrawCallback(window_name, 0));
     EXPECT_NO_THROW(destroyAllWindows());
 }
