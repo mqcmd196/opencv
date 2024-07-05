@@ -234,6 +234,11 @@ typedef void (*MouseCallback)(int event, int x, int y, int flags, void* userdata
  */
 typedef void (*TrackbarCallback)(int pos, void* userdata);
 
+/** @brief Callback function defined to be called when initialized. See cv::setOpenGlInitCallback
+@param userdata The optional parameter.
+ */
+typedef void (*OpenGlInitCallback)(void* userdata);
+
 /** @brief Callback function defined to be called every frame. See cv::setOpenGlDrawCallback
 @param userdata The optional parameter.
  */
@@ -642,6 +647,15 @@ callback function below:
         }
     }
 @endcode
+
+@param winname Name of the window.
+@param onOpenGlInit Pointer to the function to be called every frame. This function should be
+prototyped as void Foo(void\*) .
+@param userdata Pointer passed to the callback function.(__Optional__)
+ */
+CV_EXPORTS void setOpenGlInitCallback(const String& winname, OpenGlInitCallback onOpenGlInit, void* userdata = 0);
+
+/** @brief Sets the specified window as current OpenGL context.
 
 @param winname Name of the window.
 @param onOpenGlDraw Pointer to the function to be called every frame. This function should be

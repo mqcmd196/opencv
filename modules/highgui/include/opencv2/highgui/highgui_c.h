@@ -209,6 +209,8 @@ CVAPI(int) cvWaitKey(int delay CV_DEFAULT(0));
 
 typedef void (CV_CDECL *CvOpenGlDrawCallback)(void* userdata);
 CVAPI(void) cvSetOpenGlDrawCallback(const char* window_name, CvOpenGlDrawCallback callback, void* userdata CV_DEFAULT(NULL));
+typedef void (CV_CDECL *CvOpenGlInitCallback)(void* userdata);
+CVAPI(void) cvSetOpenGlInitCallback(const char* window_name, CvOpenGlInitCallback callback, void* userdata CV_DEFAULT(NULL));
 
 CVAPI(void) cvSetOpenGlContext(const char* window_name);
 CVAPI(void) cvUpdateWindow(const char* window_name);
