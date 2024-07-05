@@ -931,12 +931,6 @@ int cv::startWindowThread()
 
 // OpenGL support
 
-void cv::setOpenGlInitCallback(const String& name, OpenGlInitCallback callback, void* userdata)
-{
-    CV_TRACE_FUNCTION();
-    cvSetOpenGlInitCallback(name.c_str(), callback, userdata);
-}
-
 void cv::setOpenGlDrawCallback(const String& name, OpenGlDrawCallback callback, void* userdata)
 {
     CV_TRACE_FUNCTION();
