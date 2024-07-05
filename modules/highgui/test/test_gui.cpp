@@ -260,6 +260,7 @@ TEST(Highgui_GUI, currentUIFramework)
     ) || !defined(HAVE_OPENGL)
 TEST(Highgui_GUI, DISABLED_gl)
 #else
+#include<epoxy/gl.h>
 #include<GL/gl.h>
 TEST(Highgui_GUI, gl)
 #endif
@@ -267,20 +268,57 @@ TEST(Highgui_GUI, gl)
     const std::string window_name("gl_test_window");
     const Size image_size(800, 600);
 
+    static GLuint create_shader(const char* source, GLenum type) {
+        GLuint shader = glCreateShader(type);
+        glShaderSource(shader, 1, &source, NULL);
+        glCompileShader(shader);
+        return shader;
+    }
+
     EXPECT_NO_THROW(destroyAllWindows());
     ASSERT_NO_THROW(namedWindow(window_name, WINDOW_OPENGL));
-    Mat m = Mat(image_size, CV_8UC3, Scalar(255, 0, 0));
     ASSERT_NO_THROW(resizeWindow(window_name, image_size));
-    ASSERT_NO_THROW(setOpenGlContext(window_name));
-    ASSERT_NO_THROW(setOpenGlDrawCallback(window_name, [](void*){
-        glClear(GL_COLOR_BUFFER_BIT);
-        glColor3f(1.0f, 0.0f, 0.0f);
-        glBegin(GL_QUADS);
-        glVertex2f(-0.5f, -0.5f);
-        glVertex2f( 0.5f, -0.5f);
-        glVertex2f( 0.5f,  0.5f);
-        glVertex2f(-0.5f,  0.5f);
-        glEnd();
+    GLuint vao, vbo, program;
+    ASSERT_NO_THROW(setOpenGlInitCallback(window_name, [](void*){
+       glEnable(GL_DEPTH_TEST);
+       const char *vertex_shader_source =
+                "#version 330 core\n"
+                "layout (location = 0) in vec3 position;\n"
+                "void main() {\n"
+                "   gl_Position = vec4(position, 1.0);\n"
+                "}\n";
+
+        const char *fragment_shader_source =
+                "#version 330 core\n"
+                "out vec4 color;\n"
+                "void main() {\n"
+                "   color = vec4(1.0, 1.0, 1.0, 1.0); // white\n"
+                "}\n";
+        GLuint vertex_shader = create_shader(vertex_shader_source, GL_VERTEX_SHADER);
+        GLuint fragment_shader = create_shader(fragment_shader_source, GL_FRAGMENT_SHADER);
+        program = glCreateProgram();
+        glAttachShader(program, vertex_shader);
+        glAttachShader(program, fragment_shader);
+        glLinkProgram(program);
+        glUseProgram(program);
+        GLfloat vertices[] = {
+            0.0f,  0.5f, 0.0f,
+            -0.5f, -0.5f, 0.0f,
+            0.5f, -0.5f, 0.0f
+        };
+        glGenVertexArrays(1, &vao);
+        glBindVertexArray(vao);
+        glGenBuffers(1, &vbo);
+        glBindBuffer(GL_ARRAY_BUFFER, vbo);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0);
+        glEnableVertexAttribArray(0);
+        glBindVertexArray(0);
+    }));
+    ASSERT_NO_THROW(setOpenGlDrawCallback(window_name, [&](void*){
+        glBindVertexArray(vao);
+        glDrawArrays(GL_TRIANGLES, 0, 3);
+        glBindVertexArray(0);
     }));
     ASSERT_NO_THROW(imshow(window_name, m));
     EXPECT_NO_THROW(waitKey(10000));
