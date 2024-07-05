@@ -572,7 +572,7 @@ struct CvWindow : CvUIBase
         last_key(0), flags(0), status(0),
         on_mouse(NULL), on_mouse_param(NULL)
 #ifdef HAVE_OPENGL
-        ,useGl(false), glDrawCallback(NULL), glDrawData(NULL), glArea(NULL)
+        ,useGl(false), glInitCallback(NULL), glDrawCallback(NULL), glDrawData(NULL), glArea(NULL)
 #endif
     {
         CV_LOG_INFO(NULL, "OpenCV/UI: creating GTK window: " << window_name);
@@ -597,8 +597,8 @@ struct CvWindow : CvUIBase
 #ifdef HAVE_OPENGL
     bool useGl;
 
-    CvOpenGlDrawCallback glDrawCallback;
     CvOpenGlInitCallback glInitCallback;
+    CvOpenGlDrawCallback glDrawCallback;
     void* glDrawData;
     GtkWidget* glArea;
 #endif
@@ -917,13 +917,15 @@ namespace
 
 #ifdef GTK_VERSION3
 
-    gboolean glRealizeCallback(GtkGLArea* area, GdkGLContext* context, gpointer user_data){
+    void glRealizeCallback(GtkGLArea* area, gpointer user_data){
         CvWindow* window = (CvWindow*)user_data;
         gtk_gl_area_make_current(area);
         if (gtk_gl_area_get_error(area) != NULL)
             CV_Error(cv::Error::OpenGlApiCallError, "OpenGL context is not initialized");
-        if(window->glInitCallback)
+        if(window->glInitCallback) {
+            std::cout << "glinit" << std::endl;
             window->glInitCallback(window->glDrawData);
+        }
     }
 
     gboolean glRenderCallback(GtkGLArea* area, GdkGLContext* context, gpointer user_data){
@@ -933,9 +935,10 @@ namespace
             CV_Error(cv::Error::OpenGlApiCallError, "OpenGL context is not initialized");
             return FALSE;
         }
-        gtk_gl_area_make_current(area);
-        if(window->glDrawCallback)
+        if(window->glDrawCallback) {
+            std::cout << "gldraw" << std::endl;
             window->glDrawCallback(window->glDrawData);
+        }
 //        gtk_gl_area_queue_render(area);
         return TRUE;
     }
@@ -968,12 +971,16 @@ namespace
     void drawGl(CvWindow* window)
     {
         #ifdef GTK_VERSION3
-//        g_signal_connect(window->glArea, "render", G_CALLBACK(glRenderCallback), window);
 
         GtkGLArea* gtkGlArea = GTK_GL_AREA(window->glArea);
         if (gtk_gl_area_get_error(gtkGlArea) != NULL)
             CV_Error(cv::Error::OpenGlApiCallError, "Can't Activate The GL Rendering Context");
 
+//        g_signal_connect(window->glArea, "realize", G_CALLBACK(glRealizeCallback), window);
+//        g_signal_connect(window->glArea, "render", G_CALLBACK(glRenderCallback), window);
+
+        if (window->glInitCallback)
+            window->glInitCallback(window->glDrawData);
         if (window->glDrawCallback)
             window->glDrawCallback(window->glDrawData);
 
@@ -1100,6 +1107,7 @@ static std::shared_ptr<CvWindow> namedWindow_(const std::string& name, int flags
     if (flags & cv::WINDOW_OPENGL) {
         window->glArea = gtk_gl_area_new();
         gtk_container_add(GTK_CONTAINER(window->frame), window->glArea);
+        gtk_widget_show(window->glArea);
     } else {
         window->paned = gtk_vbox_new( FALSE, 0 );
         gtk_box_pack_end( GTK_BOX(window->paned), window->widget, TRUE, TRUE, 0 );
@@ -1122,6 +1130,7 @@ static std::shared_ptr<CvWindow> namedWindow_(const std::string& name, int flags
     if (flags & cv::WINDOW_OPENGL)
         createGlContext(window);
 
+    window->glInitCallback = 0;
     window->glDrawCallback = 0;
     window->glDrawData = 0;
 #endif
@@ -1236,7 +1245,7 @@ CV_IMPL void cvUpdateWindow(const char* name)
     if ( GTK_IS_GL_AREA(window->glArea) ){
         gtk_gl_area_queue_render(GTK_GL_AREA(window->glArea));
     } else {
-        gtk_widget_queue_draw( GTK_WIDGET(window->widget) );
+        gtk_widget_queue_draw( GTK_WIDGET(window->widget));
     }
 
 #else
@@ -1258,6 +1267,7 @@ CV_IMPL void cvSetOpenGlInitCallback(const char* name, CvOpenGlInitCallback call
 
     if (!window->useGl)
         CV_Error( cv::Error::OpenGlNotSupported, "Window was created without OpenGL context" );
+
     window->glInitCallback = callback;
     window->glDrawData = userdata;
 }
